@@ -5,7 +5,7 @@ import { ApiResponse, Update } from 'typegram';
 
 export class TelegramPollingTrigger implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'Telegram Trigger (long polling) Trigger',
+		displayName: 'Telegram Trigger (long polling, fork) Trigger',
 		name: 'telegramPollingTrigger',
 		icon: 'file:telegram.svg',
 		group: ['trigger'],
