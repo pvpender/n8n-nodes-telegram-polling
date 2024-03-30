@@ -10,7 +10,7 @@ export class TelegramPollingTrigger implements INodeType {
 		icon: 'file:telegram.svg',
 		group: ['trigger'],
 		version: 1,
-		description: 'Starts the workflow on a Telegram update via long polling',
+		description: 'Starts the workflow on a Telegram update via long polling (this is fork)',
 		defaults: {
 			name: 'Telegram Trigger',
 		},
@@ -207,6 +207,9 @@ export class TelegramPollingTrigger implements INodeType {
 						continue;
 					}
 
+					await (new Promise(resolve => setTimeout(resolve, 5000)));
+					console.log('Possible rate limit, retrying after 5 seconds...');
+					continue;
 					// any other errors must be thrown as before, we don't want to
 					// gobble them up
 					throw error;
