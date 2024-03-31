@@ -1,7 +1,9 @@
 /* eslint-disable n8n-nodes-base/node-dirname-against-convention */
 import { ITriggerFunctions } from 'n8n-core';
-import { IDataObject, INodeType, INodeTypeDescription, ITriggerResponse, IBinaryData } from 'n8n-workflow';
+import { IDataObject, INodeType, INodeTypeDescription, ITriggerResponse, IBinaryData, INodeExecutionData } from 'n8n-workflow';
 import { ApiResponse, Update } from 'typegram';
+import { getImageBySize } from './GenericFunctions';
+import type { IEvent } from './IEvent';
 
 export class TelegramPollingTrigger implements INodeType {
 	description: INodeTypeDescription = {
@@ -241,7 +243,7 @@ export class TelegramPollingTrigger implements INodeType {
 								Object.keys(update).some((x) => allowedUpdates.includes(x)),
 							);
 						}
-						const getBinary = async(bodyData: IDataObject): Promise<IBinaryData|null> => {
+						const getBinary = async (bodyData: IEvent): Promise<IBinaryData | null> => {
 							const additionalFields = this.getNodeParameter('additionalFields') as IDataObject;
 							if (additionalFields.download === true) {
 								let imageSize = 'large';
@@ -282,15 +284,15 @@ export class TelegramPollingTrigger implements INodeType {
 
 									const {
 										result: { file_path },
-									} = await apiRequest.call(this, 'GET', `getFile?file_id=${fileId}`, {});
+									} = await this.helpers.request({
+										method: 'GET',
+										uri: `https://api.telegram.org/bot${credentials.accessToken}/getFile?file_id=${fileId}`,
+										resolveWithFullResponse: true
+									});
 
-									const file = await apiRequest.call(
-										this,
-										'GET',
-										'',
-										{},
-										{},
+									const file = await this.helpers.request(
 										{
+											method: 'GET',
 											json: false,
 											encoding: null,
 											uri: `https://api.telegram.org/file/bot${credentials.accessToken}/${file_path}`,
@@ -311,8 +313,23 @@ export class TelegramPollingTrigger implements INodeType {
 							}
 							return null;
 						}
-
-						this.emit([updates.map((update) => ({ json: update as unknown as IDataObject, binary: {data: getBinary(update)}}))]);
+						const returnData: INodeExecutionData[] = [];
+						for (const update of updates) {
+							let bin = await getBinary(update as IEvent);
+							if (bin) {
+								returnData.push({
+									json: update as unknown as IBinaryData,
+									binary: {
+										data: bin as IBinaryData,
+									},
+								});
+							} else {
+								returnData.push({
+									json: update as unknown as IBinaryData,
+								});
+							}
+						}
+						this.emit([returnData]);
 					}
 				} catch (error) {
 					// 409s sometimes happen when saving changes, b/c that disables+reenables the WF
