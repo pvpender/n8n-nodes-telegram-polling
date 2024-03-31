@@ -287,7 +287,7 @@ export class TelegramPollingTrigger implements INodeType {
 										resolveWithFullResponse: true
 									});
 
-									const file_path = JSON.parse(resp.body).respult.file_path;
+									const file_path = JSON.parse(resp.body).result.file_path;
 									const file = await this.helpers.request(
 										{
 											method: 'GET',
