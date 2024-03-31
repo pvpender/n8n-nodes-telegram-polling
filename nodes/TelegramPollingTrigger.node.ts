@@ -281,11 +281,6 @@ export class TelegramPollingTrigger implements INodeType {
 									} else {
 										fileId = bodyData[key]?.document?.file_id;
 									}
-									console.log(await this.helpers.request({
-										method: 'GET',
-										uri: `https://api.telegram.org/bot${credentials.accessToken}/getFile?file_id=${fileId}`,
-										resolveWithFullResponse: true
-									}));
 									const resp = await this.helpers.request({
 										method: 'GET',
 										uri: `https://api.telegram.org/bot${credentials.accessToken}/getFile?file_id=${fileId}`,
@@ -335,6 +330,7 @@ export class TelegramPollingTrigger implements INodeType {
 						this.emit([returnData]);
 					}
 				} catch (error) {
+					console.log(error);
 					// 409s sometimes happen when saving changes, b/c that disables+reenables the WF
 					// In N8N >1.0.0 or if using execution_mode=main, that brings down the entire N8N instance
 					// so we need to ignore those errors
