@@ -286,8 +286,8 @@ export class TelegramPollingTrigger implements INodeType {
 										uri: `https://api.telegram.org/bot${credentials.accessToken}/getFile?file_id=${fileId}`,
 										resolveWithFullResponse: true
 									});
-									const file_path = resp.body.result.file_path;
 
+									const file_path = JSON.parse(resp.body).respult.file_path;
 									const file = await this.helpers.request(
 										{
 											method: 'GET',
