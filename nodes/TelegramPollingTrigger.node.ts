@@ -1,6 +1,6 @@
 /* eslint-disable n8n-nodes-base/node-dirname-against-convention */
 import { ITriggerFunctions } from 'n8n-core';
-import { IDataObject, INodeType, INodeTypeDescription, ITriggerResponse } from 'n8n-workflow';
+import { IDataObject, INodeType, INodeTypeDescription, ITriggerResponse, IBinaryData } from 'n8n-workflow';
 import { ApiResponse, Update } from 'typegram';
 
 export class TelegramPollingTrigger implements INodeType {
@@ -140,6 +140,54 @@ export class TelegramPollingTrigger implements INodeType {
 				default: 60,
 				description: 'Timeout (in seconds) for the polling request',
 			},
+			{
+				displayName: 'Additional Fields',
+				name: 'additionalFields',
+				type: 'collection',
+				placeholder: 'Add Field',
+				default: {},
+				options: [
+					{
+						displayName: 'Download Images/Files',
+						name: 'download',
+						type: 'boolean',
+						default: false,
+						// eslint-disable-next-line n8n-nodes-base/node-param-description-boolean-without-whether
+						description:
+							"Telegram delivers the image in multiple sizes. By default, just the large image would be downloaded. If you want to change the size, set the field 'Image Size'.",
+					},
+					{
+						displayName: 'Image Size',
+						name: 'imageSize',
+						type: 'options',
+						displayOptions: {
+							show: {
+								download: [true],
+							},
+						},
+						options: [
+							{
+								name: 'Small',
+								value: 'small',
+							},
+							{
+								name: 'Medium',
+								value: 'medium',
+							},
+							{
+								name: 'Large',
+								value: 'large',
+							},
+							{
+								name: 'Extra Large',
+								value: 'extraLarge',
+							},
+						],
+						default: 'large',
+						description: 'The size of the image to be downloaded',
+					},
+				],
+			},
 		],
 	};
 
@@ -193,8 +241,78 @@ export class TelegramPollingTrigger implements INodeType {
 								Object.keys(update).some((x) => allowedUpdates.includes(x)),
 							);
 						}
+						const getBinary = async(bodyData: IDataObject): Promise<IBinaryData|null> => {
+							const additionalFields = this.getNodeParameter('additionalFields') as IDataObject;
+							if (additionalFields.download === true) {
+								let imageSize = 'large';
 
-						this.emit([updates.map((update) => ({ json: update as unknown as IDataObject }))]);
+								let key: 'message' | 'channel_post' = 'message';
+
+								if (bodyData.channel_post) {
+									key = 'channel_post';
+								}
+
+								if (
+									(bodyData[key]?.photo && Array.isArray(bodyData[key]?.photo)) ||
+									bodyData[key]?.document
+								) {
+									if (additionalFields.imageSize) {
+										imageSize = additionalFields.imageSize as string;
+									}
+
+									let fileId;
+
+									if (bodyData[key]?.photo) {
+										let image = getImageBySize(
+											bodyData[key]?.photo as IDataObject[],
+											imageSize,
+										) as IDataObject;
+
+										// When the image is sent from the desktop app telegram does not resize the image
+										// So return the only image avaiable
+										// Basically the Image Size parameter would work just when the images comes from the mobile app
+										if (image === undefined) {
+											image = bodyData[key]!.photo![0];
+										}
+
+										fileId = image.file_id;
+									} else {
+										fileId = bodyData[key]?.document?.file_id;
+									}
+
+									const {
+										result: { file_path },
+									} = await apiRequest.call(this, 'GET', `getFile?file_id=${fileId}`, {});
+
+									const file = await apiRequest.call(
+										this,
+										'GET',
+										'',
+										{},
+										{},
+										{
+											json: false,
+											encoding: null,
+											uri: `https://api.telegram.org/file/bot${credentials.accessToken}/${file_path}`,
+											resolveWithFullResponse: true,
+										},
+									);
+
+									const data = Buffer.from(file.body as string);
+
+									const fileName = file_path.split('/').pop();
+
+									const binaryData = await this.helpers.prepareBinaryData(
+										data as unknown as Buffer,
+										fileName as string,
+									);
+									return binaryData;
+								}
+							}
+							return null;
+						}
+
+						this.emit([updates.map((update) => ({ json: update as unknown as IDataObject, binary: {data: getBinary(update)}}))]);
 					}
 				} catch (error) {
 					// 409s sometimes happen when saving changes, b/c that disables+reenables the WF
